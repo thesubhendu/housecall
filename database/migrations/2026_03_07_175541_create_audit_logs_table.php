@@ -17,7 +17,7 @@ return new class extends Migration
                 ->on('referrals')
                 ->cascadeOnDelete();
 
-            $table->string('event');
+            $table->string('event', 32);
             $table->jsonb('metadata')->nullable();
 
             $table->timestamp('created_at')->useCurrent();
