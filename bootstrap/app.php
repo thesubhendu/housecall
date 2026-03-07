@@ -1,18 +1,40 @@
 <?php
 
+use App\Exceptions\ReferralCannotBeCancelledException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
+        api: __DIR__.'/../routes/api.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        $middleware->alias([
+            'api.key' => \App\Http\Middleware\VerifyApiKey::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        $exceptions->render(function (ReferralCannotBeCancelledException $e, Request $request): \Illuminate\Http\JsonResponse {
+            return response()->json([
+                'message' => $e->getMessage(),
+                'error' => 'referral_not_cancellable',
+            ], 422);
+        });
+
+        $exceptions->render(function (NotFoundHttpException $e, Request $request): ?\Illuminate\Http\JsonResponse {
+            if ($request->is('api/*')) {
+                return response()->json([
+                    'message' => 'Resource not found.',
+                    'error' => 'not_found',
+                ], 404);
+            }
+
+            return null;
+        });
     })->create();
