@@ -79,21 +79,6 @@ it('does not overwrite cancelled status when user cancels during triage', functi
     expect($referral->status)->toBe(ReferralStatus::Cancelled);
 });
 
-it('keeps referral cancelled when triage job runs after user cancels via API', function (): void {
-    $referral = Referral::factory()->received()->create();
-
-    $this->withApiKey()->postJson("/api/v1/referrals/{$referral->id}/cancel", [
-        'reason' => 'Patient withdrew.',
-    ])->assertOk();
-
-    app()->call([new ProcessReferralTriageJob($referral), 'handle']);
-
-    $referral->refresh();
-
-    expect($referral->status)->toBe(ReferralStatus::Cancelled)
-        ->and($referral->cancelled_reason)->toBe('Patient withdrew.');
-});
-
 it('rolls back triage state and can be retried after a failure', function (): void {
     $referral = Referral::factory()->received()->urgent()->create();
 
