@@ -20,6 +20,18 @@ final class ListReferralsRequest extends FormRequest
             'status' => ['nullable', 'string', Rule::enum(ReferralStatus::class)],
             'priority' => ['nullable', 'string', Rule::enum(ReferralPriority::class)],
             'referring_party' => ['nullable', 'string', 'max:255'],
+            'patient_external_id' => ['nullable', 'string', 'max:255'],
+            'created_from' => ['nullable', 'date'],
+            'created_to' => [
+                'nullable',
+                'date',
+                Rule::when(
+                    $this->filled('created_from'),
+                    'after_or_equal:created_from'
+                ),
+            ],
+            'sort' => ['nullable', 'string', Rule::in(['created_at', 'updated_at'])],
+            'order' => ['nullable', 'string', Rule::in(['asc', 'desc'])],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ];
     }

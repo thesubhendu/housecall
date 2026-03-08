@@ -51,6 +51,50 @@ it('filters by priority', function (): void {
     expect($response->json('data'))->toHaveCount(2);
 });
 
+it('filters by referring_party prefix', function (): void {
+    Referral::factory()->create(['referring_party' => 'Dr. Smith']);
+    Referral::factory()->create(['referring_party' => 'Dr. Smithson']);
+    Referral::factory()->create(['referring_party' => 'Dr. Jones']);
+
+    $response = $this->withApiKey()->getJson('/api/v1/referrals?referring_party=Dr.%20Smith');
+
+    $response->assertOk();
+    expect($response->json('data'))->toHaveCount(2);
+});
+
+it('filters by patient_external_id', function (): void {
+    Referral::factory()->create(['patient_external_id' => 'EXT-123']);
+    Referral::factory()->create(['patient_external_id' => 'EXT-456']);
+
+    $response = $this->withApiKey()->getJson('/api/v1/referrals?patient_external_id=EXT-123');
+
+    $response->assertOk();
+    expect($response->json('data'))->toHaveCount(1);
+    expect($response->json('data.0.patient.external_id'))->toBe('EXT-123');
+});
+
+it('filters by date range', function (): void {
+    Referral::factory()->create(['created_at' => now()->subDays(5)]);
+    Referral::factory()->create(['created_at' => now()->subDays(2)]);
+    Referral::factory()->create(['created_at' => now()->subDays(1)]);
+
+    $response = $this->withApiKey()->getJson('/api/v1/referrals?created_from='.now()->subDays(3)->format('Y-m-d').'&created_to='.now()->format('Y-m-d'));
+
+    $response->assertOk();
+    expect($response->json('data'))->toHaveCount(2);
+});
+
+it('respects sort and order parameters', function (): void {
+    Referral::factory()->create(['created_at' => now()->subDays(2)]);
+    Referral::factory()->create(['created_at' => now()->subDays(1)]);
+
+    $response = $this->withApiKey()->getJson('/api/v1/referrals?sort=created_at&order=asc');
+
+    $response->assertOk();
+    expect($response->json('data'))->toHaveCount(2);
+    expect($response->json('data.0.id'))->toBe(Referral::orderBy('created_at')->first()->id);
+});
+
 it('returns an empty list when no referrals exist', function (): void {
     $this->withApiKey()->getJson('/api/v1/referrals')
         ->assertOk()

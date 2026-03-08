@@ -21,6 +21,13 @@ final class ReferralController extends Controller
 {
     public function index(ListReferralsRequest $request): AnonymousResourceCollection
     {
+        $sort = $request->string('sort')->isNotEmpty()
+            ? $request->string('sort')->toString()
+            : 'created_at';
+        $order = $request->string('order')->isNotEmpty()
+            ? $request->string('order')->toString()
+            : 'desc';
+
         $referrals = Referral::query()
             ->when(
                 $request->string('status')->isNotEmpty(),
@@ -32,9 +39,21 @@ final class ReferralController extends Controller
             )
             ->when(
                 $request->string('referring_party')->isNotEmpty(),
-                fn ($query) => $query->where('referring_party', 'like', '%'.$request->string('referring_party').'%')
+                fn ($query) => $query->where('referring_party', 'like', $request->string('referring_party')->toString().'%')
             )
-            ->latest()
+            ->when(
+                $request->string('patient_external_id')->isNotEmpty(),
+                fn ($query) => $query->where('patient_external_id', $request->string('patient_external_id')->toString())
+            )
+            ->when(
+                $request->date('created_from'),
+                fn ($query) => $query->whereDate('created_at', '>=', $request->date('created_from'))
+            )
+            ->when(
+                $request->date('created_to'),
+                fn ($query) => $query->whereDate('created_at', '<=', $request->date('created_to'))
+            )
+            ->orderBy($sort, $order)
             ->paginate($request->integer('per_page', 15));
 
         return ReferralResource::collection($referrals);

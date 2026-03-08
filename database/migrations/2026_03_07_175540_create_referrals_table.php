@@ -23,8 +23,8 @@ return new class extends Migration
             // Referral details
             $table->text('referral_reason');
             $table->string('priority')->default(ReferralPriority::Medium->value);
-            $table->string('status')->default(ReferralStatus::Received->value)->index();
-            $table->string('referring_party');
+            $table->string('status')->default(ReferralStatus::Received->value);
+            $table->string('referring_party')->index();
             $table->text('notes')->nullable();
 
             // Triage outcome
@@ -36,7 +36,10 @@ return new class extends Migration
 
             $table->timestamps();
 
+            // Composite indexes for list queries: filter + order by created_at
             $table->index('created_at');
+            $table->index(['status', 'created_at']);
+            $table->index(['priority', 'created_at']);
         });
     }
 
