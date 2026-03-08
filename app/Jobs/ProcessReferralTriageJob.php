@@ -11,6 +11,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
+use Illuminate\Support\Facades\DB;
 use Throwable;
 
 final class ProcessReferralTriageJob implements ShouldQueue
@@ -36,17 +37,24 @@ final class ProcessReferralTriageJob implements ShouldQueue
 
     public function handle(TriageReferralAction $triageAction, LogAuditAction $logAudit): void
     {
-        if ($this->referral->status !== ReferralStatus::Received) {
-            return;
-        }
+        DB::transaction(function () use ($triageAction, $logAudit): void {
+            $updated = Referral::query()
+                ->where('id', $this->referral->id)
+                ->where('status', ReferralStatus::Received)
+                ->update(['status' => ReferralStatus::Triaging]);
 
-        $this->referral->update(['status' => ReferralStatus::Triaging]);
+            if ($updated === 0) {
+                return;
+            }
 
-        $logAudit->execute($this->referral, AuditEvent::TriageStarted, [
-            'attempt' => $this->attempts(),
-        ]);
+            $this->referral->status = ReferralStatus::Triaging;
 
-        $triageAction->execute($this->referral);
+            $logAudit->execute($this->referral, AuditEvent::TriageStarted, [
+                'attempt' => $this->attempts(),
+            ]);
+
+            $triageAction->execute($this->referral);
+        });
     }
 
     public function failed(?Throwable $exception): void

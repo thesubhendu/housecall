@@ -19,10 +19,20 @@ final class TriageReferralAction
             ? "Referral accepted based on [{$referral->priority->value}] priority evaluation."
             : "Referral rejected based on [{$referral->priority->value}] priority evaluation.";
 
-        $referral->update([
-            'status' => $outcome,
-            'triage_notes' => $triageNotes,
-        ]);
+        $updated = Referral::query()
+            ->where('id', $referral->id)
+            ->where('status', ReferralStatus::Triaging)
+            ->update([
+                'status' => $outcome,
+                'triage_notes' => $triageNotes,
+            ]);
+
+        if ($updated === 0) {
+            return $referral;
+        }
+
+        $referral->status = $outcome;
+        $referral->triage_notes = $triageNotes;
 
         $this->logAudit->execute($referral, AuditEvent::TriageCompleted, [
             'outcome' => $outcome->value,
