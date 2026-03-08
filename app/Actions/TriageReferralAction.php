@@ -12,9 +12,7 @@ final class TriageReferralAction
 
     public function execute(Referral $referral): Referral
     {
-        $acceptanceProbability = $referral->priority->acceptanceProbability();
-        $isAccepted = (mt_rand(1, 100) / 100) <= $acceptanceProbability;
-
+        $isAccepted = $referral->priority->acceptanceProbability() >= 0.80;
         $outcome = $isAccepted ? ReferralStatus::Accepted : ReferralStatus::Rejected;
 
         $triageNotes = $isAccepted
@@ -29,7 +27,6 @@ final class TriageReferralAction
         $this->logAudit->execute($referral, AuditEvent::TriageCompleted, [
             'outcome' => $outcome->value,
             'priority' => $referral->priority->value,
-            'acceptance_probability' => $acceptanceProbability,
         ]);
 
         return $referral;
