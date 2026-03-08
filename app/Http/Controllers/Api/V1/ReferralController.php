@@ -61,7 +61,6 @@ final class ReferralController extends Controller
     public function cancel(Request $request, Referral $referral, CancelReferralAction $action): ReferralResource
     {
         $data = new CancelReferralData(
-            referralId: $referral->id,
             reason: $request->string('reason')->toString() ?: null,
         );
 
