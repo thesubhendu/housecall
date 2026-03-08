@@ -10,25 +10,8 @@ enum ReferralStatus: string
     case Rejected = 'rejected';
     case Cancelled = 'cancelled';
 
-    /** @return list<self> */
-    public static function cancellableStates(): array
-    {
-        return [self::Received, self::Triaging];
-    }
-
     public function isCancellable(): bool
     {
-        return in_array($this, self::cancellableStates(), true);
-    }
-
-    public function label(): string
-    {
-        return match ($this) {
-            self::Received => 'Received',
-            self::Triaging => 'Triaging',
-            self::Accepted => 'Accepted',
-            self::Rejected => 'Rejected',
-            self::Cancelled => 'Cancelled',
-        };
+        return in_array($this, [self::Received, self::Triaging], true);
     }
 }
