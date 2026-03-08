@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('audit_logs', function (Blueprint $table): void {
             $table->id();
 
-            $table->ulid('referral_id')->index();
+            $table->ulid('referral_id');
             $table->foreign('referral_id')
                 ->references('id')
                 ->on('referrals')
@@ -21,6 +21,8 @@ return new class extends Migration
             $table->jsonb('metadata')->nullable();
 
             $table->timestamp('created_at')->useCurrent();
+
+            $table->index(['referral_id', 'created_at']);
         });
     }
 
