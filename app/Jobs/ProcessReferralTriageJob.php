@@ -53,6 +53,8 @@ final class ProcessReferralTriageJob implements ShouldQueue
                 'attempt' => $this->attempts(),
             ]);
 
+            // Simulates triage processing time so you can manually test "cancel during triage".
+            // Skipped in testing to keep the test suite fast.
             if (! app()->environment('testing')) {
                 sleep(7);
             }

@@ -25,6 +25,7 @@ This project is a small Laravel 12 API focused on one bounded workflow: receivin
 - The triage job uses `WithoutOverlapping` keyed by referral ID to reduce concurrent processing of the same referral.
 - Triage status transitions are guarded at the database level. The job only moves a referral from `received` to `triaging`, and the triage action only completes when the row is still in `triaging`.
 - That state-checking protects against race conditions, including the case where a user cancels a referral while triage is in progress.
+- In non-testing environments, the triage job includes a 7-second sleep to simulate processing time. This gives a window to manually exercise the cancel-during-triage flow. The sleep is skipped when `APP_ENV=testing` so automated tests stay fast.
 - Audit entries are recorded for creation, triage start, triage completion, cancellation, and failed job handling.
 
 ## Auth Approach
