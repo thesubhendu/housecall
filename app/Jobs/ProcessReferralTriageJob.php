@@ -53,6 +53,10 @@ final class ProcessReferralTriageJob implements ShouldQueue
                 'attempt' => $this->attempts(),
             ]);
 
+            if (! app()->environment('testing')) {
+                sleep(7);
+            }
+
             $triageAction->execute($this->referral);
         });
     }
