@@ -1,19 +1,26 @@
-# Housecall — Patient Referral Intake API
+# Housecall - Patient Referral Intake API
 
-A backend REST API for patient referral intake and triage, built with Laravel 12.
+Backend REST API for accepting patient referrals from internal systems, storing them durably, and processing triage asynchronously with Laravel queues.
 
-## Overview
+## Project Overview
 
-This service allows internal systems to submit, retrieve, list, and cancel patient referrals. New referrals automatically trigger an asynchronous triage workflow via Laravel queues.
+The API supports four main workflows:
+
+- create a referral
+- list referrals with filtering and pagination
+- retrieve a single referral
+- cancel a referral while it is still cancellable
+
+Each newly created referral starts in `received` status and dispatches a queue job to simulate downstream triage. Audit log rows are recorded for important lifecycle events such as creation, triage start, triage completion, and cancellation.
 
 ## Prerequisites
 
 - PHP 8.2+
 - Composer
 - PostgreSQL 14+
-- Node.js (for asset compilation, not required for API-only usage)
+- Node.js and npm only if you want to build frontend assets or run the combined local dev script
 
-## Local Setup (without Docker)
+## Local Setup Without Docker
 
 ### 1. Install dependencies
 
@@ -21,14 +28,14 @@ This service allows internal systems to submit, retrieve, list, and cancel patie
 composer install
 ```
 
-### 2. Configure environment
+### 2. Create the environment file
 
 ```bash
 cp .env.example .env
 php artisan key:generate
 ```
 
-Edit `.env` and set your PostgreSQL credentials:
+Update `.env` with your local PostgreSQL credentials and ensure the queue driver is set to the database driver:
 
 ```env
 DB_CONNECTION=pgsql
@@ -37,78 +44,97 @@ DB_PORT=5432
 DB_DATABASE=housecall
 DB_USERNAME=your_user
 DB_PASSWORD=your_password
-
 QUEUE_CONNECTION=database
 ```
 
-### 3. Run migrations
+### 3. Generate an internal API token
 
-```bash
-php artisan migrate
-```
-
-### 4. Generate and set the API key
-
-Generate a secure random key:
+Generate a token:
 
 ```bash
 php artisan tinker --execute="echo Str::random(64);"
 ```
 
-Add it to your `.env`:
+Add it to `.env`:
 
 ```env
-INTERNAL_API_KEY=your-generated-key-here
+INTERNAL_API_KEY=your-generated-token
 ```
 
-### 5. Start the application
+## Run Migrations
+
+```bash
+php artisan migrate
+```
+
+This creates the application tables plus the database-backed queue tables used by the triage workflow.
+
+## Run The App
+
+Start the API server:
 
 ```bash
 php artisan serve
 ```
 
-The API will be available at `http://127.0.0.1:8000`.
+The application will be available at `http://127.0.0.1:8000`.
 
-### 6. Run the queue worker
+## Run The Queue Worker
 
-In a separate terminal:
+In a separate terminal, start a worker so newly created referrals can move through triage:
 
 ```bash
 php artisan queue:work --queue=default --tries=3 --backoff=30
 ```
 
-## Running Tests
+If you prefer a single command for local development, the project also includes:
+
+```bash
+composer run dev
+```
+
+That starts the HTTP server, queue listener, log tailing, and Vite dev server together.
+
+## Run Tests
 
 ```bash
 php artisan test --compact
 ```
 
-## API Reference
+Tests run against an in-memory SQLite database via `phpunit.xml`, so they do not require your local PostgreSQL database.
 
-All endpoints require an `Authorization: Bearer <key>` header, where `<key>` is the value of `INTERNAL_API_KEY` in your `.env`.
+## Authentication
 
-### Base URL
+All API routes require a bearer token:
 
+```http
+Authorization: Bearer <INTERNAL_API_KEY>
 ```
+
+This is intended for internal system-to-system access, not end-user authentication.
+
+## API Summary
+
+Base path:
+
+```text
 /api/v1
 ```
 
----
-
 ### Create Referral
 
-```
+```text
 POST /api/v1/referrals
 ```
 
-**Headers**
+Headers:
 
 | Header | Description |
 |---|---|
 | `Authorization` | `Bearer <token>` |
-| `X-Idempotency-Key` | Optional. UUID string. Prevents duplicate submissions on retry. |
+| `X-Idempotency-Key` | Optional. Reusing the same key returns the original referral with `409 Conflict`. |
 
-**Request Body**
+Request body:
 
 ```json
 {
@@ -122,64 +148,39 @@ POST /api/v1/referrals
 }
 ```
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `patient_name` | string | Yes | Full patient name |
-| `patient_date_of_birth` | date (YYYY-MM-DD) | Yes | Must be in the past |
-| `patient_external_id` | string | No | External system patient ID |
-| `referral_reason` | string | Yes | Clinical reason for the referral |
-| `priority` | enum | Yes | `low`, `medium`, `high`, `urgent` |
-| `referring_party` | string | Yes | Name of the source system or clinician |
-| `notes` | string | No | Additional context |
-
-**Responses**
-
-- `201 Created` — referral created successfully
-- `409 Conflict` — duplicate idempotency key; returns the existing referral
-
----
-
-### Get Referral
-
-```
-GET /api/v1/referrals/{id}
-```
-
-**Responses**
-
-- `200 OK`
-- `404 Not Found`
-
----
-
 ### List Referrals
 
-```
+```text
 GET /api/v1/referrals
 ```
 
-**Query Parameters**
+Supported query parameters:
 
-| Param | Type | Description |
-|---|---|---|
-| `status` | string | Filter by status: `received`, `triaging`, `accepted`, `rejected`, `cancelled` |
-| `priority` | string | Filter by priority: `low`, `medium`, `high`, `urgent` |
-| `referring_party` | string | Partial match on referring party name |
-| `per_page` | integer | Results per page (1–100, default 15) |
+| Parameter | Description |
+|---|---|
+| `status` | `received`, `triaging`, `accepted`, `rejected`, `cancelled` |
+| `priority` | `low`, `medium`, `high`, `urgent` |
+| `referring_party` | Prefix match filter |
+| `patient_external_id` | Exact match filter |
+| `created_from` | Inclusive start date |
+| `created_to` | Inclusive end date |
+| `sort` | `created_at` or `updated_at` |
+| `order` | `asc` or `desc` |
+| `per_page` | Pagination size from `1` to `100` |
 
-**Response**
+### Get Referral
 
-Paginated collection with `data`, `links`, and `meta`.
-
----
+```text
+GET /api/v1/referrals/{id}
+```
 
 ### Cancel Referral
 
-```
+```text
 POST /api/v1/referrals/{id}/cancel
 ```
 
-**Request Body** (optional)
+Optional request body:
 
 ```json
 {
@@ -187,21 +188,16 @@ POST /api/v1/referrals/{id}/cancel
 }
 ```
 
-**Responses**
+Cancellation is allowed only while the referral is in `received` or `triaging` status.
 
-- `200 OK` — referral cancelled
-- `422 Unprocessable` — referral is not in a cancellable state (`accepted`, `rejected`, or already `cancelled`)
+## Response Shape
 
----
-
-### Response Shape
-
-All successful responses wrap data in a `data` key:
+Successful responses are wrapped in a `data` key:
 
 ```json
 {
   "data": {
-    "id": "01HXYZ...",
+    "id": "01HV...",
     "status": "received",
     "priority": "high",
     "patient": {
@@ -211,7 +207,7 @@ All successful responses wrap data in a `data` key:
     },
     "referral_reason": "Chest pain evaluation",
     "referring_party": "City General Hospital",
-    "notes": "...",
+    "notes": "Patient reports intermittent chest pain for 3 weeks.",
     "triage_notes": null,
     "cancelled_reason": null,
     "cancelled_at": null,
@@ -221,7 +217,7 @@ All successful responses wrap data in a `data` key:
 }
 ```
 
-### Error Shape
+Example error response:
 
 ```json
 {
@@ -230,29 +226,3 @@ All successful responses wrap data in a `data` key:
 }
 ```
 
-## Sample curl Requests
-
-```bash
-TOKEN="your_bearer_token_here"
-
-# Create
-curl -X POST http://127.0.0.1:8000/api/v1/referrals \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -H "X-Idempotency-Key: $(uuidgen)" \
-  -d '{"patient_name":"Jane Doe","patient_date_of_birth":"1990-05-15","referral_reason":"Chest pain","priority":"high","referring_party":"City Clinic"}'
-
-# List
-curl http://127.0.0.1:8000/api/v1/referrals?status=received \
-  -H "Authorization: Bearer $TOKEN"
-
-# Get
-curl http://127.0.0.1:8000/api/v1/referrals/{id} \
-  -H "Authorization: Bearer $TOKEN"
-
-# Cancel
-curl -X POST http://127.0.0.1:8000/api/v1/referrals/{id}/cancel \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"reason":"Duplicate submission."}'
-```
