@@ -1,6 +1,6 @@
 ## Architecture
 
-This project is a small Laravel 12 API focused on one bounded workflow: receiving referrals from internal systems, triaging them asynchronously, and preserving an audit trail for important lifecycle events.
+This project is a small Laravel 12 API focused on one clear workflow: receiving referrals from internal systems, triaging them asynchronously, and preserving an audit trail for important lifecycle events.
 
 ## Key Design Decisions
 
@@ -43,7 +43,7 @@ This project is a small Laravel 12 API focused on one bounded workflow: receivin
 
 ## What I Would Improve With More Time
 
-- Add request correlation IDs and richer structured logging for easier operational debugging.
+- Improve logging to make production issues easier to trace.
 - Support token rotation or per-integrator credentials if multiple internal clients were expected.
 - Expand audit history exposure through a dedicated endpoint or admin view.
 - Make triage rules configurable or strategy-driven instead of embedding the current decision logic directly in the application layer.
